@@ -47,7 +47,7 @@ logger = logging.getLogger("seed_historical")
 # ---------------------------------------------------------------------------
 BATCH_ID         = "INITIAL_SEED_3YEARS"
 CSV_CHUNK_SIZE   = 50_000    # Baris per chunk saat baca CSV (hemat RAM)
-DB_CHUNK_SIZE    = 25_000    # Baris per batch INSERT MySQL (cegah timeout)
+DB_CHUNK_SIZE    = 2_500     # Baris per batch INSERT MySQL (multi-insert safe for max_allowed_packet)
 DATE_FORMAT      = "%d-%m-%Y"
 REQUIRED_COLUMNS = {"TANGGAL", "DIV", "CAT_COD", "QTY"}
 

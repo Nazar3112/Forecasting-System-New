@@ -9,7 +9,7 @@ Perbedaan utama vs versi PostgreSQL:
       DATE_SUB(transaction_date, INTERVAL WEEKDAY(transaction_date) DAY)
   - Agregasi bulanan menggunakan:
       DATE_FORMAT(transaction_date, '%Y-%m-01')
-  - Bulk insert menggunakan pd.DataFrame.to_sql() dengan chunksize=25000
+  - Bulk insert menggunakan pd.DataFrame.to_sql() dengan chunksize=2500 (multi-insert)
 
 Fungsi publik:
   fast_bulk_insert_raw()     → Insert batch ke raw_transactions
@@ -42,19 +42,19 @@ logger = logging.getLogger(__name__)
 def fast_bulk_insert_raw(
     df: pd.DataFrame,
     batch_id: str,
-    chunksize: int = 25_000,
+    chunksize: int = 2_500,
 ) -> int:
     """
     Insert DataFrame transaksi bersih ke tabel `raw_transactions`.
 
-    Menggunakan pd.DataFrame.to_sql() dengan chunksize=25000 untuk
-    mencegah error "MySQL server has gone away" pada dataset besar.
+    Menggunakan pd.DataFrame.to_sql() dengan chunksize=2500 (multi-insert)
+    agar ukuran paket SQL berada jauh di bawah limit max_allowed_packet MySQL XAMPP.
 
     Parameters
     ----------
     df        : pd.DataFrame  DataFrame bersih hasil DeltaPreprocessor.
     batch_id  : str           Identifier batch (misal 'INITIAL_SEED_3YEARS').
-    chunksize : int           Baris per batch insert (default: 25.000).
+    chunksize : int           Baris per batch insert (default: 2.500).
 
     Returns
     -------
@@ -82,14 +82,25 @@ def fast_bulk_insert_raw(
         return 0
 
     eng = get_engine()
-    insert_df.to_sql(
-        "raw_transactions",
-        con=eng,
-        if_exists="append",
-        index=False,
-        method="multi",
-        chunksize=chunksize,
-    )
+    try:
+        insert_df.to_sql(
+            "raw_transactions",
+            con=eng,
+            if_exists="append",
+            index=False,
+            method="multi",
+            chunksize=chunksize,
+        )
+    except Exception as exc:
+        logger.warning("Insert multi-row chunksize=%d gagal (%s), retry dengan chunksize=1000 ...", chunksize, exc)
+        insert_df.to_sql(
+            "raw_transactions",
+            con=eng,
+            if_exists="append",
+            index=False,
+            method="multi",
+            chunksize=1_000,
+        )
 
     logger.info(
         "fast_bulk_insert_raw: %d baris diinsert ke MySQL (batch_id=%s, chunksize=%d)",
