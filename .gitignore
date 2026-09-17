@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+
+# Environment (jangan commit kredensial!)
+.env
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Data CSV besar
+data/*.csv
+data/*.xlsx
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# Windows
+Thumbs.db
+desktop.ini
