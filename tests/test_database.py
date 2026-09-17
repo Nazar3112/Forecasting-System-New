@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pandas as pd
 import pytest
@@ -96,8 +96,8 @@ class TestRepositoryUnit:
 
     def test_get_database_summary_on_error(self):
         from database import repository
-        with patch("database.repository.engine") as mock_engine:
-            mock_engine.connect.side_effect = Exception("MySQL down")
+        with patch("database.repository.get_engine") as mock_get_engine:
+            mock_get_engine.side_effect = Exception("MySQL down")
             res = repository.get_database_summary()
         assert isinstance(res, dict)
         assert res["total_raw_transactions"] == 0
