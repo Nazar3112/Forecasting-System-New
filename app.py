@@ -3,7 +3,7 @@ app.py
 ======
 Streamlit Dashboard — Antarmuka Pengguna Operasional
 Sistem Prediksi Tren Penjualan Retail Berbasis Kategori
-Model Hibrida Prophet + LightGBM (PT. Indomarco Prismatama)
+Model Hibrida Prophet + LightGBM
 
 Arsitektur: MySQL Native (XAMPP / Standalone MySQL) — Tanpa Docker
   - Driver: Pure Python PyMySQL (tanpa kebutuhan C++ build tools)
@@ -12,8 +12,8 @@ Arsitektur: MySQL Native (XAMPP / Standalone MySQL) — Tanpa Docker
   - Upload delta bulanan inkremental (~15-25 MB)
 
 Desain: Binance Design System
-  - Near-black canvas (#0b0e11), Binance Yellow (#fcd535)
-  - Inter typography, JetBrains Mono untuk angka
+  - Dark Mode : Near-black canvas (#0b0e11), Binance Yellow (#fcd535)
+  - Light Mode: White canvas (#ffffff), Ink text (#181a20), same Yellow CTAs
 """
 
 import logging
@@ -53,108 +53,351 @@ logger = logging.getLogger(__name__)
 # Konfigurasi Halaman Streamlit
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Sales Forecast — Indomarco (MySQL)",
+    page_title="Forecasting System",
     page_icon="📦",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ---------------------------------------------------------------------------
-# Binance Design System CSS
-# ---------------------------------------------------------------------------
-BINANCE_CSS = """
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
-
-:root {
-  --primary:          #fcd535;
-  --primary-active:   #f0b90b;
-  --primary-disabled: #3a3a1f;
-  --on-primary:       #181a20;
-  --on-dark:          #ffffff;
-  --body:             #eaecef;
-  --muted:            #707a8a;
-  --muted-strong:     #929aa5;
-  --canvas-dark:      #0b0e11;
-  --surface-card:     #1e2329;
-  --surface-elevated: #2b3139;
-  --hairline:         #2b3139;
-  --trading-up:       #0ecb81;
-  --trading-down:     #f6465d;
-  --info:             #3b82f6;
-  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px;
-}
-html, body, [class*="css"], .stApp {
-  font-family: 'Inter', -apple-system, sans-serif !important;
-  background-color: var(--canvas-dark) !important;
-  color: var(--body) !important;
-}
-.main .block-container { padding: 2rem 2.5rem 4rem !important; max-width: 1280px !important; }
-h1 { font-size: 30px !important; font-weight: 600 !important; color: var(--on-dark) !important; margin-bottom: 4px !important; }
-h2 { font-size: 22px !important; font-weight: 600 !important; color: var(--on-dark) !important; margin-top: 2rem !important; }
-h3 { font-size: 18px !important; font-weight: 600 !important; color: var(--on-dark) !important; }
-p, li { font-size: 14px !important; color: var(--body) !important; }
-small { font-size: 12px !important; color: var(--muted) !important; }
-hr { border: none !important; border-top: 1px solid var(--hairline) !important; margin: 1.5rem 0 !important; }
-[data-testid="stSidebar"] { background-color: var(--surface-card) !important; border-right: 1px solid var(--hairline) !important; }
-[data-testid="stSidebar"] > div:first-child { padding: 1.5rem 1.25rem 2rem !important; }
-.stButton > button[kind="primary"], button[data-testid="baseButton-primary"] {
-  background-color: var(--primary) !important; color: var(--on-primary) !important;
-  border: none !important; border-radius: var(--r-md) !important;
-  font-size: 14px !important; font-weight: 600 !important; padding: 12px 24px !important;
-}
-.stButton > button[kind="primary"]:hover { background-color: var(--primary-active) !important; }
-.stButton > button[kind="secondary"], button[data-testid="baseButton-secondary"] {
-  background-color: var(--surface-card) !important; color: var(--on-dark) !important;
-  border: 1px solid var(--hairline) !important; border-radius: var(--r-md) !important;
-  font-size: 14px !important; font-weight: 600 !important; padding: 12px 24px !important;
-}
-[data-testid="stTabs"] [role="tablist"] { border-bottom: 1px solid var(--hairline) !important; }
-[data-testid="stTabs"] button[role="tab"] {
-  font-size: 14px !important; font-weight: 500 !important; color: var(--muted) !important;
-  border: none !important; border-bottom: 2px solid transparent !important;
-  padding: 10px 20px !important; background: transparent !important;
-}
-[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
-  font-weight: 600 !important; color: var(--primary) !important;
-  border-bottom: 2px solid var(--primary) !important;
-}
-[data-testid="stMetric"] {
-  background: var(--surface-card) !important; border: 1px solid var(--hairline) !important;
-  border-radius: var(--r-xl) !important; padding: 18px 20px 14px !important;
-}
-[data-testid="stMetricLabel"] { font-size: 11px !important; font-weight: 600 !important; letter-spacing: 0.08em !important; text-transform: uppercase !important; color: var(--muted) !important; }
-[data-testid="stMetricValue"] { font-size: 24px !important; font-weight: 700 !important; color: var(--primary) !important; font-family: 'JetBrains Mono', monospace !important; }
-[data-testid="stSelectbox"] > div > div:first-child {
-  background: var(--surface-elevated) !important; border: 1px solid var(--hairline) !important;
-  border-radius: var(--r-lg) !important; padding: 8px 12px !important; color: var(--body) !important;
-}
-[data-testid="stFileUploader"] {
-  border: 1px dashed var(--hairline) !important; border-radius: var(--r-xl) !important;
-  background: var(--surface-card) !important; padding: 0.75rem !important;
-}
-.bn-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-.bn-info-card { background: var(--surface-card); border-left: 3px solid var(--primary); border-radius: var(--r-lg); padding: 18px 22px; margin: 1rem 0; }
-.bn-info-card h4 { font-size: 15px; font-weight: 600; color: var(--primary); margin: 0 0 4px; }
-.bn-info-card p  { font-size: 13px; color: var(--body); margin: 0; }
-.db-status-ok   { color: var(--trading-up); font-weight: 600; font-size: 13px; }
-.db-status-fail { color: var(--trading-down); font-weight: 600; font-size: 13px; }
-</style>
-"""
-st.markdown(BINANCE_CSS, unsafe_allow_html=True)
-
-
-# ---------------------------------------------------------------------------
-# State Management
+# State Management — inisialisasi sebelum CSS injection
 # ---------------------------------------------------------------------------
 _SESSION_KEYS = [
     "series_df", "test_results", "future_forecast",
     "eval_report", "engine", "selected_cat",
     "freq", "group_type", "horizon", "db_summary",
+    "theme",   # "dark" | "light"
 ]
 for _k in _SESSION_KEYS:
     if _k not in st.session_state:
         st.session_state[_k] = None
+
+if st.session_state["theme"] is None:
+    st.session_state["theme"] = "dark"
+
+# ---------------------------------------------------------------------------
+# Binance Design System — Dual Theme CSS
+# ---------------------------------------------------------------------------
+_FONT_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');"
+
+_DARK_VARS = """
+  /* ── Dark Theme Tokens (Binance Marketing Surface) ── */
+  --primary:          #fcd535;
+  --primary-active:   #f0b90b;
+  --primary-disabled: #3a3a1f;
+  --on-primary:       #181a20;
+  --on-dark:          #ffffff;
+  --canvas:           #0b0e11;
+  --surface-card:     #1e2329;
+  --surface-elevated: #2b3139;
+  --hairline:         #2b3139;
+  --muted:            #707a8a;
+  --muted-strong:     #929aa5;
+  --trading-up:       #0ecb81;
+  --trading-down:     #f6465d;
+  --info:             #3b82f6;
+  --text-heading:     #ffffff;
+  --text-body:        #eaecef;
+  --text-muted:       #707a8a;
+  --text-eyebrow:     #707a8a;
+  --code-bg:          #2b3139;
+  --code-color:       #eaecef;
+  --btn-secondary-text: #ffffff;
+  --chart-bg:         #0b0e11;
+  --chart-surface:    #1e2329;
+  --chart-grid:       #2b3139;
+  --chart-text:       #eaecef;
+  --chart-tick:       #707a8a;
+"""
+
+_LIGHT_VARS = """
+  /* ── Light Theme Tokens (Binance Transactional Surface) ── */
+  --primary:          #fcd535;
+  --primary-active:   #f0b90b;
+  --primary-disabled: #e8d88a;
+  --on-primary:       #181a20;
+  --on-dark:          #181a20;
+  --canvas:           #ffffff;
+  --surface-card:     #fafafa;
+  --surface-elevated: #f5f5f5;
+  --hairline:         #eaecef;
+  --muted:            #848e9c;
+  --muted-strong:     #707a8a;
+  --trading-up:       #03a66d;
+  --trading-down:     #cf304a;
+  --info:             #1e6ac6;
+  --text-heading:     #181a20;
+  --text-body:        #474d57;
+  --text-muted:       #848e9c;
+  --text-eyebrow:     #848e9c;
+  --code-bg:          #f0f0f0;
+  --code-color:       #181a20;
+  --btn-secondary-text: #181a20;
+  --chart-bg:         #ffffff;
+  --chart-surface:    #fafafa;
+  --chart-grid:       #eaecef;
+  --chart-text:       #474d57;
+  --chart-tick:       #848e9c;
+"""
+
+_SHARED_STYLES = """
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px;
+"""
+
+def _build_css(theme: str) -> str:
+    vars_block = _DARK_VARS if theme == "dark" else _LIGHT_VARS
+    return f"""
+<style>
+{_FONT_IMPORT}
+
+:root {{
+{vars_block}
+{_SHARED_STYLES}
+}}
+
+/* ── Base ─────────────────────────────────────────────────── */
+html, body, .stApp, [class*="css"], section[data-testid="stMain"] {{
+  font-family: 'Inter', -apple-system, sans-serif !important;
+  background-color: var(--canvas) !important;
+  color: var(--text-body) !important;
+}}
+/* Override Streamlit toolbar & header – they inherit from Streamlit's own theme
+   but we force them to match our canvas so no jarring white/dark strip appears */
+header[data-testid="stHeader"],
+.stAppToolbar,
+div[class*="stAppToolbar"],
+section[class*="stMain"] > div:first-child {{
+  background-color: var(--canvas) !important;
+}}
+
+.main .block-container {{
+  padding: 2rem 2.5rem 4rem !important;
+  max-width: 1280px !important;
+  background-color: var(--canvas) !important;
+}}
+
+/* ── Typography ────────────────────────────────────────────── */
+h1 {{ font-size: 30px !important; font-weight: 600 !important; color: var(--text-heading) !important; margin-bottom: 4px !important; }}
+h2 {{ font-size: 22px !important; font-weight: 600 !important; color: var(--text-heading) !important; margin-top: 2rem !important; }}
+h3 {{ font-size: 18px !important; font-weight: 600 !important; color: var(--text-heading) !important; }}
+h4 {{ font-size: 16px !important; font-weight: 600 !important; color: var(--text-heading) !important; }}
+p, li {{ font-size: 14px !important; color: var(--text-body) !important; }}
+small {{ font-size: 12px !important; color: var(--text-muted) !important; }}
+label {{ color: var(--text-body) !important; }}
+span {{ color: inherit !important; }}
+code {{
+  background: var(--code-bg) !important;
+  color: var(--code-color) !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 12px !important;
+}}
+hr {{ border: none !important; border-top: 1px solid var(--hairline) !important; margin: 1.5rem 0 !important; }}
+
+/* ── Sidebar ───────────────────────────────────────────────── */
+[data-testid="stSidebar"],
+[data-testid="stSidebar"] > div {{
+  background-color: var(--surface-card) !important;
+  border-right: 1px solid var(--hairline) !important;
+}}
+[data-testid="stSidebar"] > div:first-child {{ padding: 1.5rem 1.25rem 2rem !important; }}
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] span:not([data-testid]) {{
+  color: var(--text-body) !important;
+}}
+[data-testid="stSidebar"] small,
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] {{
+  color: var(--text-muted) !important;
+}}
+
+/* ── Buttons ───────────────────────────────────────────────── */
+.stButton > button[kind="primary"],
+button[data-testid="baseButton-primary"] {{
+  background-color: var(--primary) !important;
+  color: var(--on-primary) !important;
+  border: none !important;
+  border-radius: var(--r-md) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+}}
+.stButton > button[kind="primary"]:hover {{ background-color: var(--primary-active) !important; }}
+.stButton > button[kind="secondary"],
+button[data-testid="baseButton-secondary"] {{
+  background-color: var(--surface-elevated) !important;
+  color: var(--btn-secondary-text) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: var(--r-md) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+}}
+.stButton > button[kind="secondary"]:hover {{
+  background-color: var(--surface-card) !important;
+  border-color: var(--muted) !important;
+}}
+
+/* ── Tabs ──────────────────────────────────────────────────── */
+[data-testid="stTabs"] [role="tablist"] {{
+  border-bottom: 1px solid var(--hairline) !important;
+  background-color: var(--canvas) !important;
+}}
+[data-testid="stTabs"] button[role="tab"] {{
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  padding: 10px 20px !important;
+  background: transparent !important;
+}}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {{
+  font-weight: 600 !important;
+  color: var(--primary) !important;
+  border-bottom: 2px solid var(--primary) !important;
+}}
+[data-testid="stTabs"] > div[role="tabpanel"] {{
+  background-color: var(--canvas) !important;
+}}
+
+/* ── Metric Cards ──────────────────────────────────────────── */
+[data-testid="stMetric"] {{
+  background: var(--surface-card) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: var(--r-xl) !important;
+  padding: 18px 20px 14px !important;
+}}
+[data-testid="stMetricLabel"] {{
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-muted) !important;
+}}
+[data-testid="stMetricValue"] {{
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  color: var(--primary) !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}}
+[data-testid="stMetricDelta"] {{
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
+}}
+
+/* ── Form Controls ─────────────────────────────────────────── */
+[data-testid="stSelectbox"] > div > div:first-child {{
+  background: var(--surface-elevated) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: var(--r-lg) !important;
+  padding: 8px 12px !important;
+  color: var(--text-body) !important;
+}}
+[data-testid="stRadio"] label,
+[data-testid="stCheckbox"] label {{
+  color: var(--text-body) !important;
+}}
+[data-testid="stSlider"] {{
+  color: var(--text-body) !important;
+}}
+[data-testid="stFileUploader"] {{
+  border: 1px dashed var(--hairline) !important;
+  border-radius: var(--r-xl) !important;
+  background: var(--surface-card) !important;
+  padding: 0.75rem !important;
+}}
+
+/* ── Expander ──────────────────────────────────────────────── */
+[data-testid="stExpander"] {{
+  border: 1px solid var(--hairline) !important;
+  border-radius: var(--r-lg) !important;
+  background: var(--surface-card) !important;
+}}
+[data-testid="stExpander"] summary {{
+  color: var(--text-body) !important;
+}}
+
+/* ── DataFrames / Tables ───────────────────────────────────── */
+[data-testid="stDataFrame"] {{
+  background: var(--surface-card) !important;
+  border-radius: var(--r-lg) !important;
+  border: 1px solid var(--hairline) !important;
+}}
+
+/* ── Alert / Info / Success / Warning ─────────────────────── */
+[data-testid="stAlert"] {{
+  background: var(--surface-elevated) !important;
+  border-radius: var(--r-lg) !important;
+  color: var(--text-body) !important;
+}}
+
+/* ── Caption ───────────────────────────────────────────────── */
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] * {{
+  color: var(--text-muted) !important;
+}}
+
+/* ── Custom Utility Classes ────────────────────────────────── */
+.bn-eyebrow {{
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-eyebrow);
+  margin-bottom: 6px;
+}}
+.bn-info-card {{
+  background: var(--surface-card);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--r-lg);
+  padding: 18px 22px;
+  margin: 1rem 0;
+}}
+.bn-info-card h4 {{ font-size: 15px; font-weight: 600; color: var(--primary); margin: 0 0 4px; }}
+.bn-info-card p  {{ font-size: 13px; color: var(--text-body); margin: 0; }}
+.db-status-ok   {{ color: var(--trading-up);   font-weight: 600; font-size: 13px; }}
+.db-status-fail {{ color: var(--trading-down); font-weight: 600; font-size: 13px; }}
+
+/* ── Page Header Bar ───────────────────────────────────────── */
+.app-header-bar {{
+  padding: 1rem 0 0.75rem;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}}
+.app-header-bar h1 {{ margin: 0 !important; }}
+.app-header-sub {{ color: var(--text-muted); margin: 2px 0 0; font-size: 13px; }}
+</style>
+"""
+
+
+# Inject CSS berdasarkan tema aktif
+st.markdown(_build_css(st.session_state["theme"]), unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# Plotly chart colors helper (bergantung pada tema)
+# ---------------------------------------------------------------------------
+def _chart_colors():
+    if st.session_state["theme"] == "light":
+        return {
+            "bg":      "#ffffff",
+            "surface": "#fafafa",
+            "grid":    "#eaecef",
+            "text":    "#474d57",
+            "tick":    "#848e9c",
+            "actual":  "#181a20",
+        }
+    return {
+        "bg":      "#0b0e11",
+        "surface": "#1e2329",
+        "grid":    "#2b3139",
+        "text":    "#eaecef",
+        "tick":    "#707a8a",
+        "actual":  "#eaecef",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -178,13 +421,28 @@ def _init_mysql_database():
 # ---------------------------------------------------------------------------
 def render_sidebar() -> dict:
     with st.sidebar:
-        # Header Brand
-        st.markdown(
-            '<p class="bn-eyebrow" style="margin-top:0">Forecasting System (MySQL)</p>'
-            '<p style="font-size:12px;color:#707a8a;margin:0">Prophet + LightGBM Hybrid · XAMPP Native</p>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("<hr style='margin:1rem 0'>", unsafe_allow_html=True)
+        # ── Header Brand + Theme Toggle ────────────────────────────────
+        is_dark  = st.session_state["theme"] == "dark"
+        col_brand, col_toggle = st.columns([3, 1])
+        with col_brand:
+            st.markdown(
+                '<p class="bn-eyebrow" style="margin-top:0;margin-bottom:2px">Forecasting System</p>'
+                '<p style="font-size:12px;color:var(--text-muted);margin:0">Prophet + LightGBM Hybrid</p>',
+                unsafe_allow_html=True,
+            )
+        with col_toggle:
+            toggle_label = "☀️" if is_dark else "🌙"
+            toggle_help  = "Switch ke Light Mode" if is_dark else "Switch ke Dark Mode"
+            if st.button(
+                toggle_label,
+                key="theme_toggle",
+                help=toggle_help,
+                use_container_width=True,
+            ):
+                st.session_state["theme"] = "light" if is_dark else "dark"
+                st.rerun()
+
+        st.markdown("<hr style='margin:0.75rem 0'>", unsafe_allow_html=True)
 
         # ── SEKSI 1: Status Koneksi MySQL ──────────────────────────────
         st.markdown('<p class="bn-eyebrow">Status Basis Data MySQL</p>', unsafe_allow_html=True)
@@ -203,7 +461,7 @@ def render_sidebar() -> dict:
         else:
             st.markdown(
                 f'<p class="db-status-fail">🔴 Koneksi MySQL Gagal</p>'
-                f'<p style="font-size:11px;color:#707a8a">{db_msg}</p>',
+                f'<p style="font-size:11px;color:var(--text-muted)">{db_msg}</p>',
                 unsafe_allow_html=True,
             )
             st.info("💡 Pastikan service MySQL aktif di **XAMPP Control Panel** (klik Start pada MySQL).")
@@ -296,7 +554,7 @@ def render_sidebar() -> dict:
         )
 
         st.markdown(
-            '<p style="font-size:11px;color:#707a8a;margin-top:1rem;line-height:1.6">'
+            '<p style="font-size:11px;color:var(--text-muted);margin-top:1rem;line-height:1.6">'
             'MySQL Native Edition (Pure Python PyMySQL)<br>'
             '<strong style="color:#fcd535">Alfiyan Nazar</strong> · 220511053<br>'
             'Teknik Informatika – UMC 2026'
@@ -328,8 +586,8 @@ def _handle_delta_sync(uploaded_file) -> None:
 
         batch_id = f"DELTA_{uploaded_file.name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        with st.spinner("Menyimpan transaksi baru ke MySQL (chunk 25.000) …"):
-            n_inserted = repository.fast_bulk_insert_raw(clean_df, batch_id=batch_id, chunksize=25_000)
+        with st.spinner("Menyimpan transaksi baru ke MySQL (chunk 2.500) …"):
+            n_inserted = repository.fast_bulk_insert_raw(clean_df, batch_id=batch_id, chunksize=2_500)
 
         with st.spinner("Menjalankan kalkulasi agregasi inkremental (ON DUPLICATE KEY UPDATE) …"):
             start_date = summary["tanggal_awal"].date() if hasattr(summary["tanggal_awal"], "date") else summary["tanggal_awal"]
@@ -370,7 +628,6 @@ def handle_forecast_execution(params: dict) -> None:
     evaluator = ModelEvaluator()
 
     with st.spinner(f"Mengambil data {group_type}={selected_cat} dari MySQL (<0.1 detik) …"):
-        # Kueri instan dari MySQL sales_aggregations
         series_df = repository.fetch_series(
             group_type=group_type,
             group_code=selected_cat,
@@ -429,8 +686,8 @@ def _render_welcome() -> None:
     st.markdown(
         """
         <div class="bn-info-card" style="margin-top:0">
-          <h4>Selamat Datang di Sistem Peramalan Retail (MySQL Native Edition)</h4>
-          <p>Sistem ini menggunakan basis data MySQL lokal (XAMPP) tanpa Docker daemon.
+          <h4>Selamat Datang di Sistem Peramalan Retail</h4>
+          <p>Dataset yang diupload akan disimpan langsung kedalam database.
           Pilih kategori dari sidebar dan klik <strong>Jalankan Peramalan</strong> untuk memulai peramalan dua tahap.</p>
         </div>
         """,
@@ -469,9 +726,10 @@ def render_main_area(params: dict) -> None:
     group_type      = st.session_state.get("group_type", "DIV")
     freq            = st.session_state.get("freq", "W")
 
-    vis = DashboardVisualizer()
+    vis       = DashboardVisualizer()
     evaluator = ModelEvaluator()
     freq_label = params.get("freq_label", "Mingguan")
+    cc        = _chart_colors()    # Ambil warna chart sesuai tema aktif
 
     tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Tab 1 — Data Explorer",
@@ -496,14 +754,17 @@ def render_main_area(params: dict) -> None:
             fig_ov.add_trace(go.Scatter(
                 x=series_df["ds"], y=series_df["y"],
                 name="Penjualan Aktual", mode="lines+markers",
-                line=dict(color="#eaecef", width=2), marker=dict(size=4),
+                line=dict(color=cc["actual"], width=2), marker=dict(size=4),
                 hovertemplate="<b>%{x|%d %b %Y}</b><br>%{y:,.0f} unit<extra></extra>",
             ))
             fig_ov.update_layout(
                 title=f"<b>Deret Waktu Historis — {group_type}: {selected_cat}</b>",
-                height=340, paper_bgcolor="#0b0e11", plot_bgcolor="#1e2329",
-                font=dict(color="#eaecef"), hovermode="x unified",
-                xaxis=dict(gridcolor="#2b3139"), yaxis=dict(gridcolor="#2b3139"),
+                height=340,
+                paper_bgcolor=cc["bg"], plot_bgcolor=cc["surface"],
+                font=dict(color=cc["text"], family="Inter, sans-serif"),
+                hovermode="x unified",
+                xaxis=dict(gridcolor=cc["grid"], linecolor=cc["grid"], tickfont=dict(color=cc["tick"])),
+                yaxis=dict(gridcolor=cc["grid"], linecolor=cc["grid"], tickfont=dict(color=cc["tick"])),
                 margin=dict(l=40, r=20, t=60, b=40),
             )
             st.plotly_chart(fig_ov, use_container_width=True)
@@ -548,17 +809,30 @@ def render_main_area(params: dict) -> None:
             fig = vis.plot_forecast(
                 historical_df   = series_df,
                 test_results    = test_results,
-                future_forecast = future_forecast or pd.DataFrame(),
+                future_forecast = future_forecast if future_forecast is not None else pd.DataFrame(),
                 title           = "Kurva Peramalan Penjualan Hibrida Prophet + LightGBM",
                 category_label  = f"{group_type}: {selected_cat}",
                 freq_label      = freq_label,
                 show_prophet    = True,
+            )
+            # Update chart colors sesuai tema
+            fig.update_layout(
+                paper_bgcolor=cc["bg"], plot_bgcolor=cc["surface"],
+                font=dict(color=cc["text"]),
+                xaxis=dict(gridcolor=cc["grid"], linecolor=cc["grid"], tickfont=dict(color=cc["tick"])),
+                yaxis=dict(gridcolor=cc["grid"], linecolor=cc["grid"], tickfont=dict(color=cc["tick"])),
             )
             st.plotly_chart(fig, use_container_width=True)
 
             st.markdown("#### Analisis Galat: Baseline Prophet vs Model Hibrida")
             st.caption("Perbandingan galat absolut |y − ŷ| menunjukkan reduksi galat berkat koreksi residual LightGBM.")
             fig_res = vis.plot_residual_analysis(test_results, category_label=f"{selected_cat}")
+            fig_res.update_layout(
+                paper_bgcolor=cc["bg"], plot_bgcolor=cc["surface"],
+                font=dict(color=cc["text"]),
+                xaxis=dict(gridcolor=cc["grid"], linecolor=cc["grid"], tickfont=dict(color=cc["tick"])),
+                yaxis=dict(gridcolor=cc["grid"], linecolor=cc["grid"], tickfont=dict(color=cc["tick"])),
+            )
             st.plotly_chart(fig_res, use_container_width=True)
 
     # ── TAB 3: Evaluasi Akurasi ────────────────────────────────────────
@@ -605,6 +879,12 @@ def render_main_area(params: dict) -> None:
                     st.markdown("#### Kontribusi Fitur Residual (LightGBM Feature Importance)")
                     st.caption("Peringkat fitur lag dan kalender yang paling berkontribusi dalam mengoreksi residual Prophet.")
                     fig_fi = vis.plot_feature_importance(fi_df)
+                    fig_fi.update_layout(
+                        paper_bgcolor=cc["bg"], plot_bgcolor=cc["surface"],
+                        font=dict(color=cc["text"]),
+                        xaxis=dict(gridcolor=cc["grid"], linecolor=cc["grid"], tickfont=dict(color=cc["tick"])),
+                        yaxis=dict(gridcolor=cc["grid"], linecolor=cc["grid"], tickfont=dict(color=cc["tick"])),
+                    )
                     st.plotly_chart(fig_fi, use_container_width=True)
 
     # ── TAB 4: Ekspor Proyeksi ─────────────────────────────────────────
@@ -654,11 +934,17 @@ def render_main_area(params: dict) -> None:
 # MAIN ENTRY POINT
 # ---------------------------------------------------------------------------
 def main() -> None:
+    is_dark    = st.session_state["theme"] == "dark"
+    hairline   = "#2b3139" if is_dark else "#eaecef"
+    text_muted = "#707a8a" if is_dark else "#848e9c"
+
     st.markdown(
         f"""
-        <div style="padding: 1rem 0 0.5rem; border-bottom: 1px solid #2b3139; margin-bottom: 1.5rem;">
-          <h1 style="margin:0">📦 {APP_TITLE}</h1>
-          <p style="color:#707a8a;margin:4px 0 0;font-size:13px">{APP_SUBTITLE}</p>
+        <div class="app-header-bar">
+          <div>
+            <h1 style="margin:0">📦 {APP_TITLE}</h1>
+            <p class="app-header-sub">{APP_SUBTITLE}</p>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,

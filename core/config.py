@@ -65,8 +65,8 @@ ROLLING_WINDOWS:    list[int] = [4, 8]
 # ---------------------------------------------------------------------------
 # PARAMETER UI
 # ---------------------------------------------------------------------------
-APP_TITLE:    str = "Sistem Prediksi Tren Penjualan Retail – Indomarco Prismatama"
-APP_SUBTITLE: str = "Model Hibrida Prophet + LightGBM | MySQL Native (XAMPP)"
+APP_TITLE:    str = "Sistem Prediksi Tren Penjualan Retail"
+APP_SUBTITLE: str = "Model Hibrida Prophet + LightGBM"
 APP_ICON:     str = "📦"
 
 # Warna grafik Plotly (Binance Design System)
